@@ -9,7 +9,16 @@ class SendMessage {
   SendMessage(this.repository);
 
   Future<Either<Failure, Message>> execute(
-      String chatRoomId, String content, MessageType type) {
-    return repository.sendMessage(chatRoomId, content, type);
+    String chatRoomId,
+    String content,
+    MessageType type,
+    String senderId,
+  ) {
+    return repository.sendMessage(
+      chatRoomId,
+      content,
+      type,
+      senderId,
+    );
   }
 }

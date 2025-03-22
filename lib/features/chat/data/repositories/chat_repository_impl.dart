@@ -55,31 +55,53 @@ class ChatRepositoryImpl implements ChatRepository {
       // 首先从本地获取消息
       final localMessages = await localDatasource.getMessages(chatRoomId);
 
-      // 然后尝试从远程获取最新消息
+      // 检查网络连接
       try {
-        final remoteMessages = await remoteDatasource.getMessages(chatRoomId);
-        final domainMessages =
-            remoteMessages.map((m) => m.toMessage()).toList();
+        // 尝试连接
+        await remoteDatasource.connect();
 
-        // 保存到本地
-        await localDatasource.saveMessages(chatRoomId, domainMessages);
+        // 然后尝试从远程获取最新消息
+        try {
+          final remoteMessages = await remoteDatasource.getMessages(chatRoomId);
+          final domainMessages =
+              remoteMessages.map((m) => m.toMessage()).toList();
 
-        return Right(domainMessages);
+          // 保存到本地
+          await localDatasource.saveMessages(chatRoomId, domainMessages);
+
+          return Right(domainMessages);
+        } on ServerException {
+          // 如果远程获取失败，则返回本地消息
+          return Right(localMessages);
+        }
+      } on ConnectionException {
+        // 连接失败，返回本地消息
+        return Right(localMessages);
       } on ServerException {
-        // 如果远程获取失败，则返回本地消息
+        // 服务器错误，返回本地消息
         return Right(localMessages);
       }
     } on CacheException {
       return Left(const Failure.cache());
+    } catch (e) {
+      return Left(const Failure.server());
     }
   }
 
   @override
   Future<Either<Failure, Message>> sendMessage(
-      String chatRoomId, String content, MessageType type) async {
+    String chatRoomId,
+    String content,
+    MessageType type,
+    String senderId,
+  ) async {
     try {
-      final messageModel =
-          await remoteDatasource.sendMessage(chatRoomId, content, type);
+      final messageModel = await remoteDatasource.sendMessage(
+        chatRoomId,
+        content,
+        type,
+        senderId,
+      );
       final message = messageModel.toMessage();
 
       // 保存到本地

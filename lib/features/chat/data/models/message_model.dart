@@ -1,43 +1,64 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import '../../domain/entities/message.dart';
 
-part 'message_model.freezed.dart';
-part 'message_model.g.dart';
+// 暂时移除 freezed 相关代码
+// part 'message_model.freezed.dart';
+// part 'message_model.g.dart';
 
-@freezed
-class MessageModel with _$MessageModel {
-  const factory MessageModel({
-    required String id,
-    required String senderId,
-    required String receiverId,
-    required String content,
-    required DateTime timestamp,
-    @Default(false) bool isRead,
-    @Default(MessageType.text) MessageType type,
-  }) = _MessageModel;
+class MessageModel {
+  final String id;
+  final String content;
+  final String fromUserId;
+  final String? fromUsername;
+  final String? toUserId;
+  final String? toRoomId;
+  final DateTime timestamp;
 
-  factory MessageModel.fromJson(Map<String, dynamic> json) =>
-      _$MessageModelFromJson(json);
+  MessageModel({
+    required this.id,
+    required this.content,
+    required this.fromUserId,
+    this.fromUsername,
+    this.toUserId,
+    this.toRoomId,
+    required this.timestamp,
+  });
 
-  factory MessageModel.fromMessage(Message message) => MessageModel(
-        id: message.id,
-        senderId: message.senderId,
-        receiverId: message.receiverId,
-        content: message.content,
-        timestamp: message.timestamp,
-        isRead: message.isRead,
-        type: message.type,
-      );
+  factory MessageModel.fromJson(Map<String, dynamic> json) {
+    return MessageModel(
+      id: json['id'],
+      content: json['content'],
+      fromUserId: json['fromUserId'],
+      fromUsername: json['fromUsername'],
+      toUserId: json['toUserId'],
+      toRoomId: json['toRoomId'],
+      timestamp: json['timestamp'] != null
+          ? DateTime.parse(json['timestamp'])
+          : DateTime.now(),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'content': content,
+      'fromUserId': fromUserId,
+      'fromUsername': fromUsername,
+      'toUserId': toUserId,
+      'toRoomId': toRoomId,
+      'timestamp': timestamp.toIso8601String(),
+    };
+  }
 }
 
 extension MessageModelExtension on MessageModel {
   Message toMessage() => Message(
         id: id,
-        senderId: senderId,
-        receiverId: receiverId,
+        senderId: fromUserId,
+        receiverId: toUserId ?? '',
         content: content,
         timestamp: timestamp,
-        isRead: isRead,
-        type: type,
+        isRead: false,
+        type: MessageType.text,
       );
 }

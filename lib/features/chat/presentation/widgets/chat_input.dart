@@ -1,132 +1,251 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../domain/entities/message.dart';
+import '../providers/chat_ui_providers.dart';
+import '../../data/providers/auth_providers.dart';
 
-class ChatInput extends StatefulWidget {
-  /// 发送消息的回调函数
-  final Function(String) onSendMessage;
-
-  /// 附加功能按钮的回调函数（可选）
-  final VoidCallback? onAttachmentPressed;
-
-  /// 输入框提示文本
-  final String hintText;
-
-  /// 发送按钮颜色
-  final Color sendButtonColor;
+class ChatInput extends ConsumerStatefulWidget {
+  final String chatRoomId;
 
   const ChatInput({
     Key? key,
-    required this.onSendMessage,
-    this.onAttachmentPressed,
-    this.hintText = '输入消息...',
-    this.sendButtonColor = Colors.blue,
+    required this.chatRoomId,
   }) : super(key: key);
 
   @override
-  _ChatInputState createState() => _ChatInputState();
+  ConsumerState<ChatInput> createState() => _ChatInputState();
 }
 
-class _ChatInputState extends State<ChatInput> {
-  final _textController = TextEditingController();
-  bool _canSend = false;
+class _ChatInputState extends ConsumerState<ChatInput> {
+  final TextEditingController _controller = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
+  bool _isSending = false;
+  bool _isComposing = false;
+  bool _isButtonEnabled = true;
 
   @override
   void initState() {
     super.initState();
-    // 监听文本变化以更新发送按钮状态
-    _textController.addListener(_updateSendButtonState);
-  }
-
-  /// 更新发送按钮的可用状态
-  void _updateSendButtonState() {
-    final canSend = _textController.text.isNotEmpty;
-    if (canSend != _canSend) {
+    _controller.addListener(() {
       setState(() {
-        _canSend = canSend;
+        _isComposing = _controller.text.isNotEmpty;
       });
-    }
-  }
-
-  /// 发送消息并清空输入框
-  void _handleSend() {
-    if (_canSend) {
-      widget.onSendMessage(_textController.text);
-      _textController.clear();
-    }
+    });
   }
 
   @override
   void dispose() {
-    _textController.removeListener(_updateSendButtonState);
-    _textController.dispose();
+    _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
+  }
+
+  Future<void> _sendMessage() async {
+    if (_controller.text.trim().isEmpty || !_isButtonEnabled) return;
+
+    final content = _controller.text.trim();
+    setState(() {
+      _isButtonEnabled = false;
+      _isSending = true;
+    });
+
+    try {
+      // 使用 SendMessage 用例发送消息
+      final sendMessage = ref.read(sendMessageProvider);
+
+      // 获取当前用户信息
+      final currentUser = ref.read(currentUserProvider).value;
+
+      // 执行发送消息
+      final result = await sendMessage.execute(
+        widget.chatRoomId,
+        content,
+        MessageType.text,
+        currentUser?.id ?? '',
+      );
+
+      result.fold((failure) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('发送失败：${failure.message ?? "未知错误"}')));
+      }, (message) {
+        // 发送成功，清空输入框
+        _controller.clear();
+
+        // 刷新消息列表 (可选，因为实时消息流会自动更新UI)
+        ref.invalidate(chatMessagesProvider(widget.chatRoomId));
+      });
+    } catch (e, stackTrace) {
+      print('发送消息错误: $e');
+      print('堆栈信息: $stackTrace');
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('发送错误：${e.toString()}')));
+    } finally {
+      setState(() {
+        _isSending = false;
+        _isButtonEnabled = true;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // 使用MediaQuery获取底部安全区域的高度
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
-    // 使用Theme获取当前主题颜色
-    final theme = Theme.of(context);
+    // 监听连接状态
+    final connectionState = ref.watch(authConnectionStateProvider);
+    final isConnected = connectionState.maybeWhen(
+      data: (connected) => connected,
+      orElse: () => false,
+    );
 
-    return Container(
-      padding: EdgeInsets.fromLTRB(8, 8, 8, 8 + bottomPadding),
-      decoration: BoxDecoration(
-        color: theme.cardColor,
-        boxShadow: [
-          BoxShadow(
-            offset: const Offset(0, -1),
-            color: theme.shadowColor.withOpacity(0.1),
-            blurRadius: 3,
-          )
-        ],
-      ),
-      child: Row(
-        children: [
-          // 附加功能按钮
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: '添加附件',
-            onPressed: widget.onAttachmentPressed ??
-                () {
-                  // 如果没有提供回调，则显示一个提示
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('附件功能暂未实现')),
-                  );
-                },
-          ),
-          // 可扩展的文本输入框
-          Expanded(
-            child: TextField(
-              controller: _textController,
-              decoration: InputDecoration(
-                hintText: widget.hintText,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: theme.inputDecorationTheme.fillColor ??
-                    theme.colorScheme.surface,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
+    print('连接状态: $isConnected');
+
+    return Column(
+      children: [
+        // 预览栏 - 可以放表情选择器、附件等
+        if (_focusNode.hasFocus)
+          Container(
+            height: 44,
+            decoration: BoxDecoration(
+              color: CupertinoColors.systemGrey6.withOpacity(0.6),
+              border: Border(
+                top: BorderSide(
+                  color: CupertinoColors.systemGrey4,
+                  width: 0.5,
                 ),
               ),
-              maxLines: null,
-              textInputAction: TextInputAction.send,
-              onSubmitted: (_) => _handleSend(),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                IconButton(
+                  icon: const Icon(CupertinoIcons.photo),
+                  onPressed: isConnected ? () {} : null,
+                  color: CupertinoColors.systemBlue,
+                ),
+                IconButton(
+                  icon: const Icon(CupertinoIcons.camera),
+                  onPressed: isConnected ? () {} : null,
+                  color: CupertinoColors.systemBlue,
+                ),
+                IconButton(
+                  icon: const Icon(CupertinoIcons.mic),
+                  onPressed: isConnected ? () {} : null,
+                  color: CupertinoColors.systemBlue,
+                ),
+              ],
             ),
           ),
-          // 发送按钮
-          IconButton(
-            icon: Icon(
-              Icons.send,
-              color: _canSend ? widget.sendButtonColor : theme.disabledColor,
+
+        // 主输入栏
+        Container(
+          decoration: BoxDecoration(
+            color: CupertinoColors.systemBackground,
+            border: Border(
+              top: BorderSide(
+                color: CupertinoColors.systemGrey4,
+                width: 0.5,
+              ),
             ),
-            tooltip: '发送消息',
-            onPressed: _canSend ? _handleSend : null,
+            boxShadow: [
+              BoxShadow(
+                color: CupertinoColors.systemGrey.withOpacity(0.2),
+                blurRadius: 4,
+                offset: const Offset(0, -1),
+              ),
+            ],
           ),
-        ],
+          padding: EdgeInsets.only(
+            left: 8.0,
+            right: 8.0,
+            top: 8.0,
+            bottom: MediaQuery.of(context).padding.bottom > 0
+                ? MediaQuery.of(context).padding.bottom
+                : 8.0, // 适配底部安全区域
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end, // 底部对齐
+            children: [
+              // 附件按钮
+              _buildCupertinoButton(
+                icon: CupertinoIcons.paperclip,
+                onPressed: isConnected
+                    ? () {
+                        // 实现附件选择逻辑
+                      }
+                    : null,
+              ),
+
+              // 文本输入框 - 使用 CupertinoTextField
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 8.0),
+                  decoration: BoxDecoration(
+                    color: CupertinoColors.systemGrey6,
+                    borderRadius: BorderRadius.circular(20.0),
+                    border: Border.all(
+                      color: CupertinoColors.systemGrey4,
+                      width: 0.5,
+                    ),
+                  ),
+                  child: CupertinoTextField(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    enabled: isConnected,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12.0,
+                      vertical: 8.0,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(20.0),
+                    ),
+                    placeholder: '输入消息...',
+                    placeholderStyle: const TextStyle(
+                      color: CupertinoColors.systemGrey,
+                      fontSize: 16,
+                    ),
+                    maxLines: 5,
+                    minLines: 1,
+                    textAlignVertical: TextAlignVertical.center,
+                    style: const TextStyle(
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              ),
+
+              // 发送按钮
+              _isSending
+                  ? const CupertinoActivityIndicator()
+                  : _buildCupertinoButton(
+                      icon: _isComposing
+                          ? CupertinoIcons.arrow_up_circle_fill
+                          : CupertinoIcons.mic_fill,
+                      color: CupertinoColors.systemBlue,
+                      onPressed:
+                          _isComposing && isConnected ? _sendMessage : null,
+                    ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCupertinoButton({
+    required IconData icon,
+    Color? color,
+    VoidCallback? onPressed,
+  }) {
+    return CupertinoButton(
+      padding: const EdgeInsets.all(4.0),
+      onPressed: onPressed,
+      child: Icon(
+        icon,
+        color: onPressed == null
+            ? CupertinoColors.systemGrey
+            : color ?? CupertinoColors.systemGrey,
+        size: 24,
       ),
     );
   }

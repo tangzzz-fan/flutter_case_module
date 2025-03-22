@@ -19,7 +19,7 @@ abstract class ChatRepository {
 
   /// 发送消息
   Future<Either<Failure, Message>> sendMessage(
-      String chatRoomId, String content, MessageType type);
+      String chatRoomId, String content, MessageType type, String senderId);
 
   /// 标记消息为已读
   Future<Either<Failure, bool>> markAsRead(String messageId);

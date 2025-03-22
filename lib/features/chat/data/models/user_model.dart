@@ -1,33 +1,40 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import '../../domain/entities/user.dart';
 
-part 'user_model.freezed.dart';
-part 'user_model.g.dart';
+// 方案1：暂时移除 freezed 相关代码
+// part 'user_model.freezed.dart';
+// part 'user_model.g.dart';
 
-@freezed
-class UserModel with _$UserModel {
-  const factory UserModel({
-    required String id,
-    required String name,
-    String? avatar,
-    @Default(false) bool isOnline,
-    @JsonKey(
-      fromJson: _dateTimeFromJson,
-      toJson: _dateTimeToJson,
-    )
-    DateTime? lastSeen,
-  }) = _UserModel;
+class UserModel {
+  final String id;
+  final String username;
+  final bool isOnline;
+  final String? avatar;
 
-  factory UserModel.fromJson(Map<String, dynamic> json) =>
-      _$UserModelFromJson(json);
+  UserModel({
+    required this.id,
+    required this.username,
+    this.isOnline = false,
+    this.avatar,
+  });
 
-  factory UserModel.fromUser(User user) => UserModel(
-        id: user.id,
-        name: user.name,
-        avatar: user.avatar,
-        isOnline: user.isOnline,
-        lastSeen: user.lastSeen,
-      );
+  factory UserModel.fromJson(Map<String, dynamic> json) {
+    return UserModel(
+      id: json['id'],
+      username: json['username'],
+      isOnline: json['isOnline'] ?? false,
+      avatar: json['avatar'],
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'username': username,
+      'isOnline': isOnline,
+      'avatar': avatar,
+    };
+  }
 }
 
 // JSON转换帮助方法
@@ -44,9 +51,9 @@ String? _dateTimeToJson(DateTime? dateTime) {
 extension UserModelExtension on UserModel {
   User toUser() => User(
         id: id,
-        name: name,
+        name: username,
         avatar: avatar,
         isOnline: isOnline,
-        lastSeen: lastSeen,
+        lastSeen: null,
       );
 }

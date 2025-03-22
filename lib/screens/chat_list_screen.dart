@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../features/chat/presentation/providers/chat_provider.dart';
+import '../features/chat/presentation/providers/chat_ui_providers.dart';
 import '../features/chat/presentation/widgets/chat_room_item.dart';
 import '../features/chat/domain/entities/chat_room.dart';
 import 'chat_detail_screen.dart';
@@ -15,7 +15,12 @@ class ChatListScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final chatConnectionState = ref.watch(chatConnectionProvider);
+    final connectionState = ref.watch(chatConnectionStateProvider);
+    final isConnected = connectionState.maybeWhen(
+      data: (connected) => connected,
+      orElse: () => false,
+    );
+
     final chatRoomsAsync = ref.watch(chatRoomsProvider);
 
     return Scaffold(
@@ -37,7 +42,7 @@ class ChatListScreen extends ConsumerWidget {
             height: 12,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: chatConnectionState ? Colors.green : Colors.red,
+              color: isConnected ? Colors.green : Colors.red,
             ),
           ),
           IconButton(
@@ -84,14 +89,14 @@ class ChatListScreen extends ConsumerWidget {
 
   void _navigateToChatDetail(
       BuildContext context, WidgetRef ref, ChatRoom chatRoom) {
-    // 设置当前聊天室ID
-    ref.read(currentChatRoomIdProvider.notifier).state = chatRoom.id;
-
     // 导航到聊天详情页面
     Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => ChatDetailScreen(chatRoom: chatRoom),
+          builder: (context) => ChatDetailScreen(
+            chatId: chatRoom.id,
+            chatName: chatRoom.name,
+          ),
         ));
   }
 

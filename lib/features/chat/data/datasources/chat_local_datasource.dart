@@ -36,9 +36,9 @@ class ChatLocalDatasourceImpl implements ChatLocalDatasource {
             id: '1',
             name: '张三',
             participants: [
-              const UserModel(
+              UserModel(
                 id: '1',
-                name: '张三',
+                username: '张三',
                 avatar: 'https://randomuser.me/api/portraits/men/1.jpg',
                 isOnline: true,
               ).toUser(),
@@ -49,9 +49,9 @@ class ChatLocalDatasourceImpl implements ChatLocalDatasource {
             id: '2',
             name: '李四',
             participants: [
-              const UserModel(
+              UserModel(
                 id: '2',
-                name: '李四',
+                username: '李四',
                 avatar: 'https://randomuser.me/api/portraits/women/2.jpg',
               ).toUser(),
             ],
@@ -60,9 +60,9 @@ class ChatLocalDatasourceImpl implements ChatLocalDatasource {
             id: '3',
             name: '项目组',
             participants: [
-              const UserModel(id: '3', name: '王五').toUser(),
-              const UserModel(id: '4', name: '赵六').toUser(),
-              const UserModel(id: '5', name: '孙七').toUser(),
+              UserModel(id: '3', username: '王五', avatar: '').toUser(),
+              UserModel(id: '4', username: '赵六', avatar: '').toUser(),
+              UserModel(id: '5', username: '孙七', avatar: '').toUser(),
             ],
             isGroup: true,
             unreadCount: 5,
@@ -88,32 +88,32 @@ class ChatLocalDatasourceImpl implements ChatLocalDatasource {
         () => [
           MessageModel(
             id: '1',
-            senderId: chatRoomId,
-            receiverId: 'me',
+            fromUserId: chatRoomId,
+            toUserId: 'me',
             content:
                 '你好，我是${chatRoomId == '1' ? '张三' : chatRoomId == '2' ? '李四' : '项目组'}',
             timestamp: now.subtract(const Duration(minutes: 5)),
           ),
           MessageModel(
             id: '2',
-            senderId: 'me',
-            receiverId: chatRoomId,
+            fromUserId: 'me',
+            toUserId: chatRoomId,
             content: '你好，很高兴认识你',
             timestamp: now.subtract(const Duration(minutes: 4)),
           ),
           if (chatRoomId == '1')
             MessageModel(
               id: '3',
-              senderId: chatRoomId,
-              receiverId: 'me',
+              fromUserId: chatRoomId,
+              toUserId: 'me',
               content: '我们明天见面讨论项目进展吧',
               timestamp: now.subtract(const Duration(minutes: 3)),
             ),
           if (chatRoomId == '1')
             MessageModel(
               id: '4',
-              senderId: 'me',
-              receiverId: chatRoomId,
+              fromUserId: 'me',
+              toUserId: chatRoomId,
               content: '好的，下午两点公司会议室',
               timestamp: now.subtract(const Duration(minutes: 2)),
             ),
