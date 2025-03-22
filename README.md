@@ -14,7 +14,9 @@ flutter_module/
 │ ├── router/
 │ │ └── app_router.dart # 路由管理（go_router）
 │ ├── screens/
-│ │ ├── home_screen.dart # 首页（MethodChannel示例）
+│ │ ├── home_screen.dart # 主页容器（包含底部导航）
+│ │ ├── index_screen.dart # 功能演示索引页
+│ │ ├── chat_list_screen.dart # 聊天列表页面
 │ │ ├── detail_screen.dart # 详情页面
 │ │ ├── log_screen.dart # 日志展示（BasicMessageChannel示例）
 │ │ ├── sensor_screen.dart # 传感器数据（EventChannel示例）
@@ -37,7 +39,7 @@ flutter_module/
 模块实现了三种Flutter与原生代码的通信机制：
 
 1. **MethodChannel** - 用于方法调用和返回单一结果
-   - 示例: 首页（HomeScreen）中的消息传递和页面退出
+   - 示例: 首页（HomeScreen）和索引页（IndexScreen）中的消息传递和页面退出
 
 2. **EventChannel** - 用于连续数据流
    - 示例: 传感器数据（SensorScreen）中的加速度计数据流
@@ -47,30 +49,46 @@ flutter_module/
 
 ### 功能模块
 
-1. **日志系统**
+1. **功能演示索引**
+   - 集中展示所有可用功能的入口页面
+   - 分类展示各种功能模块和通信示例
+
+2. **聊天消息**
+   - 展示聊天会话列表界面
+   - 模拟聊天消息和未读消息提醒
+
+3. **日志系统**
    - 记录不同级别的日志（INFO、WARNING、ERROR、DEBUG）
    - 在Flutter和原生端之间同步日志
    - 提供用户友好的日志查看界面
 
-2. **蓝牙功能**
+4. **蓝牙功能**
    - 扫描周围蓝牙设备
    - 连接/断开蓝牙设备
    - 显示设备信息和信号强度
 
-3. **传感器数据**
+5. **传感器数据**
    - 实时获取设备加速度计数据
    - 图形化展示传感器数据变化
 
-4. **路由导航**
+6. **用户界面**
+   - 个人中心页面 - 展示用户信息和功能入口
+   - 设置页面 - 用户偏好设置和应用配置
+   - 项目详情页 - 展示带参数的路由导航
+
+7. **路由导航**
    - 使用go_router管理应用内导航
    - 实现基于命名路由的导航系统
    - 支持动态参数和嵌套路由
+   - 包含404错误页面处理
 
 ## 技术栈
 
 - **路由管理**: go_router
 - **状态管理**: provider
 - **UI组件**: flutter_svg, cached_network_image
+- **平台集成**: 各种通信通道（MethodChannel, EventChannel, BasicMessageChannel）
+- **设计风格**: 同时支持Material和Cupertino风格组件
 - **开发环境**: Flutter SDK 3.3+
 
 ## 开始使用
@@ -119,8 +137,28 @@ SensorService().accelerometerStream.listen((data) {
 });
 ```
 
+## 页面导航流程
+
+应用主要分为以下几个部分：
+
+1. **主页容器（HomeScreen）**
+   - 包含底部导航栏，可切换不同的功能标签页
+   - 标签页包括：功能索引、聊天消息、蓝牙、个人中心和设置
+
+2. **功能演示（IndexScreen）**
+   - 展示所有可用功能的入口卡片
+   - 分类展示：基础功能、硬件交互、原生通信等
+
+3. **功能详情页面**
+   - 各个功能的详细实现页面
+   - 包括：传感器数据、日志系统、蓝牙功能等
+
+4. **通用页面**
+   - 设置、个人中心等辅助功能页面
+
 ## 注意事项
 
 - 项目需要Flutter 3.3或更高版本
 - 集成到原生应用时，需遵循Flutter官方的add-to-app流程
 - 部分功能可能需要特定平台权限（如蓝牙、传感器）
+- 所有页面都支持返回到原生页面的功能
