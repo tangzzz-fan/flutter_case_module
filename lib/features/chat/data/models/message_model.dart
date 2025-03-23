@@ -1,3 +1,4 @@
+import 'package:flutter_module/features/chat/data/repositories/chat_repository_impl.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import '../../domain/entities/message.dart';
 
@@ -12,6 +13,8 @@ class MessageModel {
   final String? fromUsername;
   final String? toUserId;
   final String? toRoomId;
+  final MessageType? messageType;
+  final MessageStatus? messageStatus;
   final DateTime timestamp;
 
   MessageModel({
@@ -21,6 +24,8 @@ class MessageModel {
     this.fromUsername,
     this.toUserId,
     this.toRoomId,
+    this.messageStatus,
+    this.messageType,
     required this.timestamp,
   });
 
@@ -35,6 +40,8 @@ class MessageModel {
       timestamp: json['timestamp'] != null
           ? DateTime.parse(json['timestamp'])
           : DateTime.now(),
+      messageType: json['type'],
+      messageStatus: json['status'],
     );
   }
 

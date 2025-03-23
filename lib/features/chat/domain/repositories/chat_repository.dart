@@ -32,4 +32,44 @@ abstract class ChatRepository {
 
   /// 监听用户状态变化
   Stream<User> get userStatusStream;
+
+  /// 发送私聊消息
+  Future<Either<Failure, Message>> sendPrivateMessage({
+    required String recipientId,
+    required String content,
+    int? timestamp,
+  });
+
+  /// 发送房间消息
+  Future<Either<Failure, Message>> sendRoomMessage({
+    required String roomId,
+    required String content,
+    int? timestamp,
+  });
+
+  /// 标记消息已读
+  Future<Either<Failure, bool>> markMessageAsRead(String messageId);
+
+  /// 加入房间
+  Future<Either<Failure, bool>> joinRoom(String roomId);
+
+  /// 离开房间
+  Future<Either<Failure, bool>> leaveRoom(String roomId);
+
+  /// 创建房间
+  Future<Either<Failure, ChatRoom>> createRoom({
+    required String roomName,
+    bool isPrivate = false,
+    List<String>? members,
+  });
+
+  /// 与现有方法整合的创建聊天室方法
+  Future<ChatRoom> createChatRoom({
+    required String name,
+    required List<String> participants,
+    required bool isGroup,
+    String? description,
+    String? avatarUrl,
+    Map<String, dynamic>? metadata,
+  });
 }

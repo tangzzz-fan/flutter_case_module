@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:dartz/dartz.dart';
+import 'package:flutter_module/features/chat/data/repositories/chat_repository_impl.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/chat_room.dart';
 import '../../domain/entities/user.dart';
@@ -115,6 +116,8 @@ class MockChatRemoteDataSource implements ChatRemoteDataSource {
         content: content,
         fromUserId: 'user_$senderIndex', // 使用 fromUserId 参数
         timestamp: timestamp,
+        messageType: MessageType.text,
+        messageStatus: MessageStatus.sent,
       ));
     }
 
@@ -185,6 +188,8 @@ class MockChatRemoteDataSource implements ChatRemoteDataSource {
       content: content,
       fromUserId: fromUserId,
       timestamp: DateTime.now(),
+      messageType: MessageType.text,
+      messageStatus: MessageStatus.sent,
     );
 
     // 添加到消息列表

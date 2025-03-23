@@ -43,6 +43,11 @@ abstract class ChatSocketDataSource {
 
   /// 标记消息为已读
   void markMessageAsRead(String messageId);
+
+  /// 新增方法
+  bool isConnected();
+  IO.Socket getSocket();
+  String getCurrentUserId();
 }
 
 /// Socket数据源实现
@@ -142,6 +147,24 @@ class ChatSocketDataSourceImpl implements ChatSocketDataSource {
   @override
   void markMessageAsRead(String messageId) {
     _socket.emit('mark_read', {'messageId': messageId});
+  }
+
+  @override
+  bool isConnected() {
+    // Implementation needed
+    throw UnimplementedError();
+  }
+
+  @override
+  IO.Socket getSocket() {
+    // Implementation needed
+    throw UnimplementedError();
+  }
+
+  @override
+  String getCurrentUserId() {
+    // Implementation needed
+    throw UnimplementedError();
   }
 
   /// 关闭流

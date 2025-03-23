@@ -5,9 +5,10 @@ import 'package:flutter_module/features/chat/data/models/message_model.dart';
 import 'package:flutter_module/features/chat/data/models/user_model.dart';
 import 'package:flutter_module/features/chat/domain/entities/chat_state.dart';
 import 'package:flutter_module/features/chat/domain/entities/chat_room.dart';
+import 'package:flutter_module/features/chat/domain/entities/message.dart';
+import 'package:flutter_module/features/chat/domain/entities/user.dart';
 import 'package:flutter_module/features/chat/domain/repositories/chat_repository.dart';
 
-// ChatProvider 改为 StateNotifier
 class ChatNotifier extends StateNotifier<ChatState> {
   final SocketConnectionManager _socketManager;
   final ChatRepository _chatRepository;
@@ -93,8 +94,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
   void _handleUsersList(dynamic data) {
     try {
       if (data is List) {
-        final users =
-            data.map((userData) => UserModel.fromJson(userData)).toList();
+        // 修复：将 UserModel 转换为 User 然后再设置状态
+        final users = data
+            .map((userData) => UserModel.fromJson(userData).toUser())
+            .toList();
         state = state.copyWith(users: users);
       }
     } catch (e) {
@@ -120,7 +123,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
   // 处理新消息
   void _handleNewMessage(dynamic data) {
     try {
-      final message = MessageModel.fromJson(data);
+      // 修复：将 MessageModel 转换为 Message 然后再设置状态
+      final messageModel = MessageModel.fromJson(data);
+      final message = messageModel.toMessage();
       final updatedMessages = [...state.messages, message];
       state = state.copyWith(messages: updatedMessages);
     } catch (e) {
@@ -131,7 +136,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
   // 处理用户加入
   void _handleUserJoined(dynamic data) {
     try {
-      final user = UserModel.fromJson(data);
+      // 修复：将 UserModel 转换为 User 然后再设置状态
+      final userModel = UserModel.fromJson(data);
+      final user = userModel.toUser();
+
       if (!state.users.any((u) => u.id == user.id)) {
         final updatedUsers = [...state.users, user];
         state = state.copyWith(users: updatedUsers);
@@ -268,6 +276,215 @@ class ChatNotifier extends StateNotifier<ChatState> {
       return true;
     } catch (e) {
       _errorMessage = '加入聊天室失败: $e';
+      return false;
+    }
+  }
+
+  /// 创建新的聊天室
+  ///
+  /// [roomName] 聊天室名称
+  /// [isPrivate] 是否为私有房间
+  /// [members] 初始成员ID列表
+  /// 返回值：成功时返回创建的聊天室，失败时返回null
+  Future<ChatRoom?> createChatRoom({
+    required String roomName,
+    bool isPrivate = false,
+    List<String>? members,
+  }) async {
+    try {
+      // 更新状态为加载中
+      state = state.copyWith(status: ChatStatus.loading);
+
+      if (!_socketManager.isConnected) {
+        _errorMessage = '未连接到服务器，无法创建聊天室';
+        state = state.copyWith(
+          status: ChatStatus.error,
+          errorMessage: '未连接到服务器，无法创建聊天室',
+        );
+        return null;
+      }
+
+      // 根据文档创建房间数据
+      final roomData = {
+        'roomName': roomName,
+        'isPrivate': isPrivate,
+        if (members != null && members.isNotEmpty) 'members': members,
+      };
+
+      // 发送创建房间事件
+      _socketManager.socket.emit('room_created', roomData);
+
+      // 创建临时聊天室对象
+      final tempRoom = ChatRoom(
+        id: 'temp_${DateTime.now().millisecondsSinceEpoch}',
+        name: roomName,
+        description: '新建聊天室',
+        isPrivate: isPrivate,
+        creatorId: await _socketManager.getCurrentUserId(),
+        members: members != null
+            ? members
+                .map((id) => User(id: id, name: '', isOnline: false))
+                .toList()
+            : [
+                User(
+                    id: await _socketManager.getCurrentUserId(),
+                    name: '',
+                    isOnline: true)
+              ],
+        createdAt: DateTime.now(),
+      );
+
+      // 将临时聊天室添加到状态中
+      final updatedRooms = [...state.chatRooms, tempRoom];
+      state = state.copyWith(
+        status: ChatStatus.success,
+        chatRooms: updatedRooms,
+        errorMessage: null,
+      );
+
+      // 临时解决方案：等待一段时间后重新获取聊天室列表
+      // 实际应用中应该使用Socket.IO的回调或事件监听
+      Future.delayed(const Duration(milliseconds: 500), () {
+        getChatRooms();
+      });
+
+      return tempRoom;
+    } catch (e) {
+      // 处理错误
+      _errorMessage = '创建聊天室失败: ${e.toString()}';
+      state = state.copyWith(
+        status: ChatStatus.error,
+        errorMessage: '创建聊天室失败: ${e.toString()}',
+      );
+      return null;
+    }
+  }
+
+  // 重命名原来的方法以区分 Socket 创建和 API 创建
+  Future<void> createChatRoomViaAPI({
+    required String name,
+    required List<String> participants,
+    required bool isGroup,
+    String? description,
+    String? avatarUrl,
+    Map<String, dynamic>? metadata,
+  }) async {
+    try {
+      state = state.copyWith(status: ChatStatus.loading);
+
+      final result = await _chatRepository.createChatRoom(
+        name: name,
+        participants: participants,
+        isGroup: isGroup,
+        description: description,
+        avatarUrl: avatarUrl,
+        metadata: metadata,
+      );
+
+      // 处理成功创建聊天室后的逻辑
+      final updatedRooms = [...state.chatRooms, result];
+      state = state.copyWith(
+        status: ChatStatus.success,
+        chatRooms: updatedRooms,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        status: ChatStatus.error,
+        errorMessage: '创建聊天室失败: ${e.toString()}',
+      );
+    }
+  }
+
+  /// 发送私聊消息
+  Future<bool> sendPrivateMessage({
+    required String recipientId,
+    required String content,
+  }) async {
+    try {
+      final result = await _chatRepository.sendPrivateMessage(
+        recipientId: recipientId,
+        content: content,
+      );
+
+      return result.fold(
+        (failure) {
+          _errorMessage = failure.message;
+          return false;
+        },
+        (message) {
+          // 添加消息到本地状态
+          final updatedMessages = [...state.messages, message];
+          state = state.copyWith(messages: updatedMessages);
+          return true;
+        },
+      );
+    } catch (e) {
+      _errorMessage = '发送私聊消息失败: $e';
+      return false;
+    }
+  }
+
+  /// 发送群聊消息
+  Future<bool> sendRoomMessage({
+    required String roomId,
+    required String content,
+  }) async {
+    try {
+      final result = await _chatRepository.sendRoomMessage(
+        roomId: roomId,
+        content: content,
+      );
+
+      return result.fold(
+        (failure) {
+          _errorMessage = failure.message;
+          return false;
+        },
+        (message) {
+          // 添加消息到本地状态
+          final updatedMessages = [...state.messages, message];
+          state = state.copyWith(messages: updatedMessages);
+          return true;
+        },
+      );
+    } catch (e) {
+      _errorMessage = '发送群聊消息失败: $e';
+      return false;
+    }
+  }
+
+  /// 标记消息为已读
+  Future<bool> markMessageAsRead(String messageId) async {
+    try {
+      final result = await _chatRepository.markMessageAsRead(messageId);
+
+      return result.fold(
+        (failure) {
+          _errorMessage = failure.message;
+          return false;
+        },
+        (success) => success,
+      );
+    } catch (e) {
+      _errorMessage = '标记消息已读失败: $e';
+      return false;
+    }
+  }
+
+  /// 离开聊天室
+  Future<bool> leaveRoom(String roomId) async {
+    try {
+      final result = await _chatRepository.leaveRoom(roomId);
+
+      return result.fold(
+        (failure) {
+          _errorMessage = failure.message;
+          return false;
+        },
+        (success) => success,
+      );
+    } catch (e) {
+      _errorMessage = '离开聊天室失败: $e';
       return false;
     }
   }

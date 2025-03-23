@@ -389,4 +389,12 @@ class SocketConnectionManager {
 
     return completer.future;
   }
+
+  /// 获取当前用户ID
+  Future<String> getCurrentUserId() async {
+    // 根据实际情况实现，这可能来自认证系统
+    // 临时实现示例：
+    return _socket?.auth?['userId'] ??
+        'user_${DateTime.now().millisecondsSinceEpoch}';
+  }
 }

@@ -8,7 +8,7 @@ import '../../domain/entities/message.dart';
 import '../../domain/entities/chat_room.dart';
 import '../../data/providers/chat_data_providers.dart';
 import '../../data/providers/auth_providers.dart';
-import 'chat_provider.dart';
+import 'chat_notifier.dart';
 
 // 使用例子提供者
 final connectChatProvider = Provider<ConnectChat>((ref) {
@@ -49,21 +49,6 @@ final chatRoomsProvider = FutureProvider<List<ChatRoom>>((ref) async {
   });
 
   return await chatNotifier.getChatRooms();
-});
-
-// 添加一个新的提供者专门处理连接
-final chatConnectionInitializerProvider = Provider<void>((ref) {
-  // 使用 onDispose 监听生命周期
-  ref.onDispose(() {
-    final chatNotifier = ref.read(chatNotifierProvider.notifier);
-    chatNotifier.disconnect();
-  });
-
-  // 延迟连接操作，确保在提供者完全初始化后执行
-  Future.microtask(() {
-    final chatNotifier = ref.read(chatNotifierProvider.notifier);
-    chatNotifier.connect();
-  });
 });
 
 // 特定聊天室的消息提供者
