@@ -16,6 +16,7 @@ class ChatRoom extends Equatable {
   final DateTime? createdAt;
   final bool? isPrivate;
   final String? creatorId;
+  final List<Message>? messages;
 
   const ChatRoom({
     required this.id,
@@ -28,6 +29,7 @@ class ChatRoom extends Equatable {
     this.unreadCount,
     this.isGroup,
     this.creatorId,
+    this.messages,
   });
 
   @override
@@ -41,7 +43,8 @@ class ChatRoom extends Equatable {
         description,
         createdAt,
         isPrivate,
-        creatorId
+        creatorId,
+        messages,
       ];
 
   // 从JSON创建实例
@@ -64,6 +67,11 @@ class ChatRoom extends Equatable {
       unreadCount: json['unreadCount'] as int?,
       isGroup: json['isGroup'] as bool?,
       creatorId: json['creatorId'] as String?,
+      messages: json['messages'] != null
+          ? (json['messages'] as List<dynamic>?)
+              ?.map((e) => Message.fromJson(e as Map<String, dynamic>))
+              .toList()
+          : null,
     );
   }
 
@@ -80,6 +88,8 @@ class ChatRoom extends Equatable {
       if (unreadCount != null) 'unreadCount': unreadCount,
       if (isGroup != null) 'isGroup': isGroup,
       'creatorId': creatorId,
+      if (messages != null)
+        'messages': messages!.map((e) => e.toJson()).toList(),
     };
   }
 
@@ -95,6 +105,7 @@ class ChatRoom extends Equatable {
     DateTime? createdAt,
     bool? isPrivate,
     String? creatorId,
+    List<Message>? messages,
   }) {
     return ChatRoom(
       id: id ?? this.id,
@@ -107,6 +118,7 @@ class ChatRoom extends Equatable {
       createdAt: createdAt ?? this.createdAt,
       isPrivate: isPrivate ?? this.isPrivate,
       creatorId: creatorId ?? this.creatorId,
+      messages: messages ?? this.messages,
     );
   }
 

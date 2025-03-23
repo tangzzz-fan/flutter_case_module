@@ -62,7 +62,7 @@ dev_dependencies:
   
   # 添加 mockito 依赖
   mockito: ^5.4.0
-  
+  mocktail: ^1.0.1 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 

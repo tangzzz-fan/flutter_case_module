@@ -173,3 +173,8 @@ Future<Map<String, String>> getSocketAuthInfo() async {
     'token': token,
   };
 }
+
+// 修改 mockRemoteDataSource 提供器，确保它不依赖于 Socket
+final mockRemoteDataSourceProvider = Provider<MockChatRemoteDataSource>((ref) {
+  return MockChatRemoteDataSource();
+});
