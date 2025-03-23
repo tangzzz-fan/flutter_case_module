@@ -4,15 +4,20 @@ import 'exceptions.dart';
 
 part 'failure.freezed.dart';
 
+/// 统一的失败类型定义
+///
+/// 这个类合并了原来的 failure.dart 和 failures.dart 中的定义
+/// 提供 Freezed 风格的模式匹配和构造函数
 @freezed
 class Failure with _$Failure {
+  // 主要失败类型
   const factory Failure.server([String? message]) = ServerFailure;
   const factory Failure.cache([String? message]) = CacheFailure;
   const factory Failure.connection([String? message]) = ConnectionFailure;
   const factory Failure.authentication([String? message]) =
       AuthenticationFailure;
 
-  // 添加此工厂方法将异常转换为Failure
+  // 从异常转换为Failure的工厂方法
   factory Failure.fromException(Exception exception) {
     if (exception is ServerException) {
       return Failure.server(exception.toString());
@@ -27,3 +32,7 @@ class Failure with _$Failure {
     }
   }
 }
+
+// 为了兼容性而添加的别名类型
+typedef RemoteFailure = Failure;
+typedef LocalFailure = Failure;

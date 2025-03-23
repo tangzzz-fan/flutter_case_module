@@ -33,26 +33,36 @@ final chatConnectionStateProvider = Provider<AsyncValue<bool>>((ref) {
   return ref.watch(socketConnectionStatusProvider);
 });
 
+// 添加一个用于触发连接的状态提供者
+final shouldConnectProvider = StateProvider<bool>((ref) => false);
+
 // 聊天室列表提供者
 final chatRoomsProvider = FutureProvider<List<ChatRoom>>((ref) async {
-  // 先获取连接状态
-  final connectionState = ref.watch(socketConnectionStatusProvider);
-  final isConnected = connectionState.maybeWhen(
-    data: (connected) => connected,
-    orElse: () => false,
-  );
+  final chatNotifier = ref.read(chatNotifierProvider.notifier);
 
-  if (!isConnected) {
-    // 尝试连接
-    await ref.read(chatNotifierProvider.notifier).connect();
-  }
+  // 监听连接状态变化
+  ref.listen<bool>(shouldConnectProvider, (previous, next) {
+    if (next) {
+      chatNotifier.connect();
+    }
+  });
 
-  final getChatRooms = ref.watch(getChatRoomsProvider);
-  final result = await getChatRooms.execute();
-  return result.fold(
-    (failure) => [],
-    (chatRooms) => chatRooms,
-  );
+  return await chatNotifier.getChatRooms();
+});
+
+// 添加一个新的提供者专门处理连接
+final chatConnectionInitializerProvider = Provider<void>((ref) {
+  // 使用 onDispose 监听生命周期
+  ref.onDispose(() {
+    final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    chatNotifier.disconnect();
+  });
+
+  // 延迟连接操作，确保在提供者完全初始化后执行
+  Future.microtask(() {
+    final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    chatNotifier.connect();
+  });
 });
 
 // 特定聊天室的消息提供者
@@ -84,12 +94,13 @@ final messageStreamProvider = StreamProvider<Message>((ref) {
   return repository.messageStream;
 });
 
-// 改为使用StateNotifierProvider
 final chatNotifierProvider =
     StateNotifierProvider<ChatNotifier, ChatState>((ref) {
   // 使用从数据层导入的 socketConnectionManagerProvider
   final socketManager = ref.watch(socketConnectionManagerProvider);
-  return ChatNotifier(socketManager);
+  // 添加仓库依赖
+  final chatRepository = ref.watch(chatRepositoryProvider);
+  return ChatNotifier(socketManager, chatRepository);
 });
 
 // 当前聊天室ID提供者

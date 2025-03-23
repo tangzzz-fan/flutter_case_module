@@ -5,12 +5,31 @@ import '../models/message_model.dart';
 import '../models/chat_room_model.dart';
 import '../models/user_model.dart';
 import '../../core/exceptions.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
-abstract class ChatLocalDatasource {
-  /// 获取本地保存的聊天室列表
+abstract class ChatLocalDataSource {
+  Future<void> cacheUsers(List<UserModel> users);
+  Future<List<UserModel>> getCachedUsers();
+
+  Future<void> cacheMessages(String chatRoomId, List<MessageModel> messages);
+  Future<List<MessageModel>> getCachedMessages(String chatRoomId);
+
+  Future<void> cacheChatRooms(List<ChatRoom> chatRooms);
+  Future<List<ChatRoom>> getCachedChatRooms();
+
+  Future<void> cacheCurrentUser(UserModel user);
+  Future<UserModel?> getCachedCurrentUser();
+
+  Future<void> clearCache();
+
+  /// 获取本地缓存的聊天室列表
   Future<List<ChatRoom>> getChatRooms();
 
-  /// 获取特定聊天室的消息记录
+  /// 保存聊天室列表到本地
+  Future<void> saveChatRooms(List<ChatRoom> rooms);
+
+  /// 获取特定聊天室的消息列表
   Future<List<Message>> getMessages(String chatRoomId);
 
   /// 保存消息列表到本地
@@ -19,60 +38,170 @@ abstract class ChatLocalDatasource {
   /// 保存单条消息到本地
   Future<void> saveMessage(String chatRoomId, Message message);
 
-  /// 保存聊天室列表到本地
-  Future<void> saveChatRooms(List<ChatRoom> chatRooms);
+  /// 获取最后一次同步时间
+  Future<DateTime?> getLastSyncTime();
+
+  /// 保存同步时间
+  Future<void> saveLastSyncTime(DateTime time);
 }
 
-class ChatLocalDatasourceImpl implements ChatLocalDatasource {
+class ChatLocalDataSourceImpl implements ChatLocalDataSource {
+  final SharedPreferences _prefs;
+  static const String _USERS_KEY = 'cached_users';
+  static const String _MESSAGES_PREFIX = 'cached_messages_';
+  static const String _CHATROOMS_KEY = 'cached_chatrooms';
+  static const String _CURRENT_USER_KEY = 'current_user';
+  static const String _chatRoomsKey = 'chat_rooms';
+  static const String _messagesKeyPrefix = 'messages_';
+  static const String _lastSyncKey = 'last_sync_time';
+
+  ChatLocalDataSourceImpl(this._prefs);
+
+  @override
+  Future<void> cacheUsers(List<UserModel> users) async {
+    final jsonString = json.encode(users.map((user) => user.toJson()).toList());
+    await _prefs.setString(_USERS_KEY, jsonString);
+  }
+
+  @override
+  Future<List<UserModel>> getCachedUsers() async {
+    final jsonString = _prefs.getString(_USERS_KEY);
+    if (jsonString == null) return [];
+
+    try {
+      final List<dynamic> jsonList = json.decode(jsonString);
+      return jsonList.map((item) => UserModel.fromJson(item)).toList();
+    } catch (e) {
+      print('解析缓存用户出错: $e');
+      return [];
+    }
+  }
+
+  @override
+  Future<void> cacheMessages(
+      String chatRoomId, List<MessageModel> messages) async {
+    final jsonString =
+        json.encode(messages.map((msg) => msg.toJson()).toList());
+    await _prefs.setString('${_MESSAGES_PREFIX}$chatRoomId', jsonString);
+  }
+
+  @override
+  Future<List<MessageModel>> getCachedMessages(String chatRoomId) async {
+    final jsonString = _prefs.getString('${_MESSAGES_PREFIX}$chatRoomId');
+    if (jsonString == null) return [];
+
+    try {
+      final List<dynamic> jsonList = json.decode(jsonString);
+      return jsonList.map((item) => MessageModel.fromJson(item)).toList();
+    } catch (e) {
+      print('解析缓存消息出错: $e');
+      return [];
+    }
+  }
+
+  @override
+  Future<void> cacheChatRooms(List<ChatRoom> chatRooms) async {
+    final jsonString =
+        json.encode(chatRooms.map((room) => room.toJson()).toList());
+    await _prefs.setString(_CHATROOMS_KEY, jsonString);
+  }
+
+  @override
+  Future<List<ChatRoom>> getCachedChatRooms() async {
+    final jsonString = _prefs.getString(_CHATROOMS_KEY);
+    if (jsonString == null) return [];
+
+    try {
+      final List<dynamic> jsonList = json.decode(jsonString);
+      return jsonList.map((item) => ChatRoom.fromJson(item)).toList();
+    } catch (e) {
+      print('解析缓存聊天室出错: $e');
+      return [];
+    }
+  }
+
+  @override
+  Future<void> cacheCurrentUser(UserModel user) async {
+    final jsonString = json.encode(user.toJson());
+    await _prefs.setString(_CURRENT_USER_KEY, jsonString);
+  }
+
+  @override
+  Future<UserModel?> getCachedCurrentUser() async {
+    final jsonString = _prefs.getString(_CURRENT_USER_KEY);
+    if (jsonString == null) return null;
+
+    try {
+      final Map<String, dynamic> jsonMap = json.decode(jsonString);
+      return UserModel.fromJson(jsonMap);
+    } catch (e) {
+      print('解析缓存当前用户出错: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<void> clearCache() async {
+    // 获取所有键
+    final keys = _prefs.getKeys();
+
+    // 筛选相关键
+    final chatKeys = keys
+        .where((key) =>
+            key == _USERS_KEY ||
+            key == _CHATROOMS_KEY ||
+            key == _CURRENT_USER_KEY ||
+            key.startsWith(_MESSAGES_PREFIX))
+        .toList();
+
+    // 移除相关缓存
+    for (final key in chatKeys) {
+      await _prefs.remove(key);
+    }
+  }
+
+  // 辅助方法：将存储的域实体转换为数据模型
+  List<UserModel> _convertUsersToModels(List<User> users) {
+    return users
+        .map((user) => UserModel.fromEntity(
+              user,
+              socketId: 'local-${user.id}', // 本地存储时使用特殊前缀，表示非实时连接
+              connected: false,
+              lastActive: user.lastSeen,
+            ))
+        .toList();
+  }
+
+  // 辅助方法：将数据模型转换为域实体
+  List<User> _convertModelsToUsers(List<UserModel> models) {
+    return models.map((model) => model.toEntity()).toList();
+  }
+
   @override
   Future<List<ChatRoom>> getChatRooms() async {
     try {
-      // 这里应该从SQLite或其他本地存储获取聊天室列表
-      // 暂时返回模拟数据
-      final chatRoomModels = await Future.delayed(
-        const Duration(milliseconds: 500),
-        () => [
-          ChatRoomModel(
-            id: '1',
-            name: '张三',
-            participants: [
-              UserModel(
-                id: '1',
-                username: '张三',
-                avatar: 'https://randomuser.me/api/portraits/men/1.jpg',
-                isOnline: true,
-              ).toUser(),
-            ],
-            unreadCount: 2,
-          ),
-          ChatRoomModel(
-            id: '2',
-            name: '李四',
-            participants: [
-              UserModel(
-                id: '2',
-                username: '李四',
-                avatar: 'https://randomuser.me/api/portraits/women/2.jpg',
-              ).toUser(),
-            ],
-          ),
-          ChatRoomModel(
-            id: '3',
-            name: '项目组',
-            participants: [
-              UserModel(id: '3', username: '王五', avatar: '').toUser(),
-              UserModel(id: '4', username: '赵六', avatar: '').toUser(),
-              UserModel(id: '5', username: '孙七', avatar: '').toUser(),
-            ],
-            isGroup: true,
-            unreadCount: 5,
-          ),
-        ],
-      );
+      final jsonString = _prefs.getString(_chatRoomsKey);
+      if (jsonString == null) {
+        return [];
+      }
 
-      // 将模型转换为领域实体
-      return chatRoomModels.map((model) => model.toChatRoom()).toList();
+      final List<dynamic> jsonList = json.decode(jsonString);
+      return jsonList.map((item) => ChatRoom.fromJson(item)).toList();
     } catch (e) {
+      print('获取本地聊天室失败: $e');
+      throw CacheException();
+    }
+  }
+
+  @override
+  Future<void> saveChatRooms(List<ChatRoom> rooms) async {
+    try {
+      final jsonList = rooms.map((room) => room.toJson()).toList();
+      final jsonString = json.encode(jsonList);
+      await _prefs.setString(_chatRoomsKey, jsonString);
+      print('保存了 ${rooms.length} 个聊天室到本地缓存');
+    } catch (e) {
+      print('保存聊天室失败: $e');
       throw CacheException();
     }
   }
@@ -80,69 +209,122 @@ class ChatLocalDatasourceImpl implements ChatLocalDatasource {
   @override
   Future<List<Message>> getMessages(String chatRoomId) async {
     try {
-      // 从本地存储读取消息历史
-      // 暂时返回模拟数据
-      final now = DateTime.now();
-      final messageModels = await Future.delayed(
-        const Duration(milliseconds: 500),
-        () => [
-          MessageModel(
-            id: '1',
-            fromUserId: chatRoomId,
-            toUserId: 'me',
-            content:
-                '你好，我是${chatRoomId == '1' ? '张三' : chatRoomId == '2' ? '李四' : '项目组'}',
-            timestamp: now.subtract(const Duration(minutes: 5)),
-          ),
-          MessageModel(
-            id: '2',
-            fromUserId: 'me',
-            toUserId: chatRoomId,
-            content: '你好，很高兴认识你',
-            timestamp: now.subtract(const Duration(minutes: 4)),
-          ),
-          if (chatRoomId == '1')
-            MessageModel(
-              id: '3',
-              fromUserId: chatRoomId,
-              toUserId: 'me',
-              content: '我们明天见面讨论项目进展吧',
-              timestamp: now.subtract(const Duration(minutes: 3)),
-            ),
-          if (chatRoomId == '1')
-            MessageModel(
-              id: '4',
-              fromUserId: 'me',
-              toUserId: chatRoomId,
-              content: '好的，下午两点公司会议室',
-              timestamp: now.subtract(const Duration(minutes: 2)),
-            ),
-        ],
-      );
+      final key = '$_messagesKeyPrefix$chatRoomId';
+      final jsonString = _prefs.getString(key);
+      if (jsonString == null) {
+        return [];
+      }
 
-      // 将模型转换为领域实体
-      return messageModels.map((model) => model.toMessage()).toList();
+      final List<dynamic> jsonList = json.decode(jsonString);
+      return jsonList.map((item) => Message.fromJson(item)).toList();
     } catch (e) {
+      print('获取本地消息失败: $e');
       throw CacheException();
     }
   }
 
   @override
   Future<void> saveMessages(String chatRoomId, List<Message> messages) async {
-    // 实现保存消息列表的逻辑
-    // 此处应该使用SQLite或其他本地存储技术
-    return Future.delayed(const Duration(milliseconds: 200));
+    try {
+      final key = '$_messagesKeyPrefix$chatRoomId';
+      final jsonList = messages.map((message) => message.toJson()).toList();
+      final jsonString = json.encode(jsonList);
+      await _prefs.setString(key, jsonString);
+      print('保存了 ${messages.length} 条消息到本地缓存 (房间: $chatRoomId)');
+    } catch (e) {
+      print('保存消息列表失败: $e');
+      throw CacheException();
+    }
   }
 
   @override
   Future<void> saveMessage(String chatRoomId, Message message) async {
-    // 实现保存单条消息的逻辑
-    return Future.delayed(const Duration(milliseconds: 100));
+    try {
+      // 获取现有消息
+      final messages = await getMessages(chatRoomId);
+
+      // 检查消息是否已存在
+      final existingIndex = messages.indexWhere((m) => m.id == message.id);
+
+      if (existingIndex >= 0) {
+        // 更新现有消息
+        messages[existingIndex] = message;
+      } else {
+        // 添加新消息
+        messages.add(message);
+      }
+
+      // 保存更新后的消息列表
+      await saveMessages(chatRoomId, messages);
+      print('保存/更新消息 ${message.id} 到本地缓存 (房间: $chatRoomId)');
+    } catch (e) {
+      print('保存单条消息失败: $e');
+      throw CacheException();
+    }
   }
 
   @override
-  Future<void> saveChatRooms(List<ChatRoom> chatRooms) async {
-    // 实现保存聊天室列表的逻辑
-    return Future.delayed(const Duration(milliseconds: 200));
+  Future<DateTime?> getLastSyncTime() async {
+    try {
+      final timestamp = _prefs.getInt(_lastSyncKey);
+      if (timestamp == null) {
+        return null;
+      }
+      return DateTime.fromMillisecondsSinceEpoch(timestamp);
+    } catch (e) {
+      print('获取同步时间失败: $e');
+      throw CacheException();
+    }
+  }
+
+  @override
+  Future<void> saveLastSyncTime(DateTime time) async {
+    try {
+      final timestamp = time.millisecondsSinceEpoch;
+      await _prefs.setInt(_lastSyncKey, timestamp);
+    } catch (e) {
+      print('保存同步时间失败: $e');
+      throw CacheException();
+    }
+  }
+
+  // 辅助方法：清除特定聊天室的缓存
+  Future<void> clearChatRoomCache(String chatRoomId) async {
+    try {
+      final key = '$_messagesKeyPrefix$chatRoomId';
+      await _prefs.remove(key);
+      print('清除了聊天室 $chatRoomId 的缓存');
+    } catch (e) {
+      print('清除聊天室缓存失败: $e');
+      throw CacheException();
+    }
+  }
+
+  // 辅助方法：清除所有聊天相关缓存
+  Future<void> clearAllChatCache() async {
+    try {
+      // 获取所有键
+      final keys = _prefs.getKeys();
+
+      // 筛选聊天相关的键
+      final chatKeys = keys
+          .where((key) =>
+              key == _USERS_KEY ||
+              key == _CHATROOMS_KEY ||
+              key == _CURRENT_USER_KEY ||
+              key.startsWith(_messagesKeyPrefix) ||
+              key == _lastSyncKey)
+          .toList();
+
+      // 删除键
+      for (final key in chatKeys) {
+        await _prefs.remove(key);
+      }
+
+      print('清除了所有聊天缓存 (${chatKeys.length} 个键)');
+    } catch (e) {
+      print('清除所有聊天缓存失败: $e');
+      throw CacheException();
+    }
   }
 }

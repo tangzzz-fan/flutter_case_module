@@ -4,10 +4,13 @@ import 'package:flutter_module/features/chat/data/datasources/socket_connection_
 import 'package:flutter_module/features/chat/data/models/message_model.dart';
 import 'package:flutter_module/features/chat/data/models/user_model.dart';
 import 'package:flutter_module/features/chat/domain/entities/chat_state.dart';
+import 'package:flutter_module/features/chat/domain/entities/chat_room.dart';
+import 'package:flutter_module/features/chat/domain/repositories/chat_repository.dart';
 
 // ChatProvider 改为 StateNotifier
 class ChatNotifier extends StateNotifier<ChatState> {
   final SocketConnectionManager _socketManager;
+  final ChatRepository _chatRepository;
 
   // 错误信息
   String? _errorMessage;
@@ -16,7 +19,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
   // 用于监听socket连接状态的订阅
   StreamSubscription<bool>? _connectionSubscription;
 
-  ChatNotifier(this._socketManager) : super(ChatState.initial()) {
+  ChatNotifier(this._socketManager, this._chatRepository)
+      : super(ChatState.initial()) {
     // 初始化时设置连接状态监听
     _setupConnectionStatusListener();
     // 初始化时设置事件监听
@@ -49,9 +53,15 @@ class ChatNotifier extends StateNotifier<ChatState> {
     final socket = _socketManager.socket;
 
     // 用户列表更新
-    socket.on('users_list', (data) {
+    socket.on('users:list', (data) {
       print('收到用户列表: $data');
       _handleUsersList(data);
+    });
+
+    // 添加对聊天室列表的监听
+    socket.on('room:list', (data) {
+      print('收到聊天室列表: $data');
+      _handleRoomList(data);
     });
 
     // 消息接收
@@ -89,6 +99,21 @@ class ChatNotifier extends StateNotifier<ChatState> {
       }
     } catch (e) {
       print('处理用户列表时出错: $e');
+    }
+  }
+
+  // 处理聊天室列表
+  void _handleRoomList(dynamic data) {
+    try {
+      if (data is List) {
+        // 解析聊天室数据并更新状态
+        final chatRooms =
+            data.map((roomData) => ChatRoom.fromJson(roomData)).toList();
+        state = state.copyWith(chatRooms: chatRooms);
+        print('更新聊天室列表: ${chatRooms.length} 个聊天室');
+      }
+    } catch (e) {
+      print('处理聊天室列表时出错: $e');
     }
   }
 
@@ -165,34 +190,16 @@ class ChatNotifier extends StateNotifier<ChatState> {
   // 连接到聊天服务器
   Future<bool> connect() async {
     try {
-      // 如果已经处于连接状态，直接返回成功
-      if (state.connectionStatus == ConnectionStatus.connected) {
-        return true;
-      }
+      // 发起连接请求并等待结果
+      await _socketManager.connect();
 
-      // 如果正在连接中，不重复触发连接
-      if (state.connectionStatus == ConnectionStatus.connecting) {
-        return false;
-      }
-
-      state = state.copyWith(connectionStatus: ConnectionStatus.connecting);
-
-      final success = await _socketManager.connect();
-
-      if (success) {
-        // 连接成功后设置事件监听
-        _setupEventListeners();
-
-        state = state.copyWith(connectionStatus: ConnectionStatus.connected);
-        _errorMessage = null;
-      } else {
-        state = state.copyWith(connectionStatus: ConnectionStatus.error);
-      }
-
-      return success;
-    } catch (e) {
+      // 连接成功，更新状态
+      state = state.copyWith(connectionStatus: ConnectionStatus.connected);
+      return true;
+    } catch (error) {
+      // 处理错误
+      _errorMessage = '连接失败: $error';
       state = state.copyWith(connectionStatus: ConnectionStatus.error);
-      _errorMessage = '连接失败: $e';
       return false;
     }
   }
@@ -215,6 +222,30 @@ class ChatNotifier extends StateNotifier<ChatState> {
     } catch (e) {
       _errorMessage = '更新认证信息失败: $e';
       return false;
+    }
+  }
+
+  // 添加 getChatRooms 方法
+  Future<List<ChatRoom>> getChatRooms() async {
+    try {
+      // 检查连接状态
+      if (!_socketManager.isConnected) {
+        _errorMessage = '未连接到服务器，无法获取聊天室列表';
+        return [];
+      }
+
+      // 调用仓库获取聊天室列表
+      final result = await _chatRepository.getChatRooms();
+      return result.fold(
+        (failure) {
+          _errorMessage = '获取聊天室失败: ${failure.message}';
+          return [];
+        },
+        (rooms) => rooms,
+      );
+    } catch (e) {
+      _errorMessage = '获取聊天室出错: $e';
+      return [];
     }
   }
 

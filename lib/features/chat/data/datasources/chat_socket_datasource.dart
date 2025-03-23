@@ -6,134 +6,147 @@ import '../models/user_model.dart';
 import '../../core/exceptions.dart';
 import 'socket_connection_manager.dart';
 
-abstract class ChatSocketDatasource {
-  Future<bool> connect();
-  Future<bool> disconnect();
-  Future<List<MessageModel>> getMessages(String chatRoomId);
-  Future<MessageModel> sendMessage(
-    String chatRoomId,
-    String content,
-    MessageType type,
-    String senderId,
-  );
+/// Socket数据源接口，负责实时通信
+abstract class ChatSocketDataSource {
+  /// 获取连接状态流
+  Stream<bool> get connectionStatus;
+
+  /// 获取消息流
   Stream<MessageModel> get messageStream;
+
+  /// 获取用户状态流
   Stream<UserModel> get userStatusStream;
+
+  /// 连接到Socket服务器
+  Future<bool> connect();
+
+  /// 断开Socket连接
+  Future<bool> disconnect();
+
+  /// 加入聊天室
+  void joinRoom(String roomId);
+
+  /// 离开聊天室
+  void leaveRoom(String roomId);
+
+  /// 发送消息
+  void sendMessage(String roomId, String content, MessageType type);
+
+  /// 更新认证信息
+  void updateAuth(Map<String, dynamic> authInfo);
+
+  /// 请求用户列表刷新
+  void requestUserListRefresh();
+
+  /// 请求房间列表刷新
+  void requestRoomListRefresh();
+
+  /// 标记消息为已读
+  void markMessageAsRead(String messageId);
 }
 
-class ChatSocketDatasourceImpl implements ChatSocketDatasource {
-  final SocketConnectionManager _connectionManager;
-  final _messageController = StreamController<MessageModel>.broadcast();
-  final _userStatusController = StreamController<UserModel>.broadcast();
+/// Socket数据源实现
+class ChatSocketDataSourceImpl implements ChatSocketDataSource {
+  final IO.Socket _socket;
+  final SocketConnectionManager _manager;
 
-  ChatSocketDatasourceImpl({required String serverUrl})
-      : _connectionManager = SocketConnectionManager(
-            serverUrl: serverUrl, authInfo: {'username': 'guest_user'}) {
-    _initListeners();
+  // 流控制器
+  final _messageStreamController = StreamController<MessageModel>.broadcast();
+  final _userStatusStreamController = StreamController<UserModel>.broadcast();
+
+  ChatSocketDataSourceImpl(this._socket, this._manager) {
+    _setupEventListeners();
   }
 
-  void _initListeners() {
-    final socket = _connectionManager.socket;
-
-    // 消息事件监听
-    socket.on('message', (data) {
+  /// 设置事件监听器
+  void _setupEventListeners() {
+    // 新消息事件
+    _socket.on('message', (data) {
       try {
         final message = MessageModel.fromJson(data);
-        _messageController.add(message);
+        _messageStreamController.add(message);
       } catch (e) {
-        print('解析消息失败: $e');
+        print('处理消息事件时出错: $e');
       }
     });
 
-    // 用户状态变更监听
-    socket.on('user_status', (data) {
+    // 用户状态变化事件
+    _socket.on('user_status', (data) {
       try {
         final user = UserModel.fromJson(data);
-        _userStatusController.add(user);
+        _userStatusStreamController.add(user);
       } catch (e) {
-        print('解析用户状态失败: $e');
+        print('处理用户状态事件时出错: $e');
       }
+    });
+
+    // 其他事件可以在这里添加...
+  }
+
+  @override
+  Stream<bool> get connectionStatus => _manager.connectionStatus;
+
+  @override
+  Stream<MessageModel> get messageStream => _messageStreamController.stream;
+
+  @override
+  Stream<UserModel> get userStatusStream => _userStatusStreamController.stream;
+
+  @override
+  Future<bool> connect() {
+    // Implementation needed
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<bool> disconnect() {
+    // Implementation needed
+    throw UnimplementedError();
+  }
+
+  @override
+  void joinRoom(String roomId) {
+    _socket.emit('join_room', {'roomId': roomId});
+  }
+
+  @override
+  void leaveRoom(String roomId) {
+    _socket.emit('leave_room', {'roomId': roomId});
+  }
+
+  @override
+  void sendMessage(String roomId, String content, MessageType type) {
+    _socket.emit('send_message', {
+      'roomId': roomId,
+      'content': content,
+      'type': type.toString().split('.').last,
     });
   }
 
   @override
-  Future<bool> connect() => _connectionManager.connect();
-
-  @override
-  Future<bool> disconnect() => _connectionManager.disconnect();
-
-  @override
-  Future<List<MessageModel>> getMessages(String chatRoomId) async {
-    await connect(); // 确保连接
-
-    try {
-      final completer = Completer<List<dynamic>>();
-      final socket = _connectionManager.socket;
-
-      socket.emitWithAck('get_messages', {'chatRoomId': chatRoomId},
-          ack: (data) {
-        if (data is List) {
-          completer.complete(data);
-        } else {
-          completer.completeError(ServerException());
-        }
-      });
-
-      final result = await completer.future.timeout(const Duration(seconds: 5),
-          onTimeout: () {
-        throw ServerException();
-      });
-
-      return result.map((e) => MessageModel.fromJson(e)).toList();
-    } catch (e) {
-      throw ServerException();
-    }
+  void updateAuth(Map<String, dynamic> authInfo) {
+    // Implementation needed
+    throw UnimplementedError();
   }
 
   @override
-  Future<MessageModel> sendMessage(
-    String chatRoomId,
-    String content,
-    MessageType type,
-    String senderId,
-  ) async {
-    await connect(); // 确保连接
-
-    try {
-      final completer = Completer<Map<String, dynamic>>();
-      final socket = _connectionManager.socket;
-
-      socket.emitWithAck('send_message', {
-        'chatRoomId': chatRoomId,
-        'content': content,
-        'type': type.toString().split('.').last,
-        'senderId': senderId,
-      }, ack: (data) {
-        if (data is Map<String, dynamic>) {
-          completer.complete(data);
-        } else {
-          completer.completeError(ServerException());
-        }
-      });
-
-      final result = await completer.future.timeout(const Duration(seconds: 5),
-          onTimeout: () {
-        throw ServerException();
-      });
-
-      return MessageModel.fromJson(result);
-    } catch (e) {
-      throw ServerException();
-    }
+  void requestUserListRefresh() {
+    _socket.emit('get_users');
   }
 
+  @override
+  void requestRoomListRefresh() {
+    _socket.emit('get_rooms');
+  }
+
+  @override
+  void markMessageAsRead(String messageId) {
+    _socket.emit('mark_read', {'messageId': messageId});
+  }
+
+  /// 关闭流
   void dispose() {
-    _messageController.close();
-    _userStatusController.close();
+    _messageStreamController.close();
+    _userStatusStreamController.close();
   }
-
-  @override
-  Stream<MessageModel> get messageStream => _messageController.stream;
-
-  @override
-  Stream<UserModel> get userStatusStream => _userStatusController.stream;
 }

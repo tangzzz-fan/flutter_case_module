@@ -1,71 +1,131 @@
-import 'package:freezed_annotation/freezed_annotation.dart';
 import '../../domain/entities/chat_room.dart';
 import '../../domain/entities/user.dart';
 import '../../domain/entities/message.dart';
 import 'message_model.dart';
 import 'user_model.dart';
 
-part 'chat_room_model.freezed.dart';
-part 'chat_room_model.g.dart';
+class ChatRoomModel {
+  final String id;
+  final String name;
+  final List<User> members;
+  final String? description;
+  final DateTime? createdAt;
+  final bool? isPrivate;
+  final Message? lastMessage;
+  final int? unreadCount;
+  final bool? isGroup;
+  final String? creatorId;
 
-@freezed
-class ChatRoomModel with _$ChatRoomModel {
-  const factory ChatRoomModel({
-    required String id,
-    required String name,
-    @JsonKey(
-      fromJson: _participantsFromJson,
-      toJson: _participantsToJson,
-    )
-    required List<User> participants,
-    @JsonKey(
-      fromJson: _messageFromJson,
-      toJson: _messageToJson,
-    )
-    Message? lastMessage,
-    @Default(0) int unreadCount,
-    @Default(false) bool isGroup,
-  }) = _ChatRoomModel;
+  ChatRoomModel({
+    required this.id,
+    required this.name,
+    required this.members,
+    required this.description,
+    required this.createdAt,
+    required this.isPrivate,
+    this.lastMessage,
+    this.unreadCount = 0,
+    this.isGroup = false,
+    this.creatorId,
+  });
 
-  factory ChatRoomModel.fromJson(Map<String, dynamic> json) =>
-      _$ChatRoomModelFromJson(json);
+  // 从 JSON 创建 ChatRoomModel
+  factory ChatRoomModel.fromJson(Map<String, dynamic> json) {
+    return ChatRoomModel(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      members: _membersFromJson(json['members'] as List<dynamic>),
+      description: json['description'] as String?,
+      createdAt: json['createdAt'] != null
+          ? DateTime.parse(json['createdAt'] as String)
+          : null,
+      isPrivate: json['isPrivate'] as bool? ?? false,
+      lastMessage: json['lastMessage'] != null
+          ? Message.fromJson(json['lastMessage'] as Map<String, dynamic>)
+          : null,
+      unreadCount: json['unreadCount'] as int? ?? 0,
+      isGroup: json['isGroup'] as bool? ?? false,
+      creatorId: json['creatorId'] as String?,
+    );
+  }
 
+  // 转换为 JSON
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'members': _membersToJson(members),
+      'description': description,
+      if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
+      'isPrivate': isPrivate,
+      if (lastMessage != null) 'lastMessage': lastMessage!.toJson(),
+      'unreadCount': unreadCount,
+      'isGroup': isGroup,
+      'creatorId': creatorId,
+    };
+  }
+
+  // 从领域实体创建
   factory ChatRoomModel.fromChatRoom(ChatRoom chatRoom) => ChatRoomModel(
         id: chatRoom.id,
         name: chatRoom.name,
-        participants: chatRoom.participants,
+        members: chatRoom.members,
+        description: chatRoom.description,
+        createdAt: chatRoom.createdAt,
+        isPrivate: chatRoom.isPrivate,
         lastMessage: chatRoom.lastMessage,
         unreadCount: chatRoom.unreadCount,
         isGroup: chatRoom.isGroup,
+        creatorId: chatRoom.creatorId,
       );
-}
 
-// JSON转换帮助方法
-Message? _messageFromJson(Map<String, dynamic>? json) {
-  if (json == null) return null;
-  return Message.fromJson(json);
-}
-
-Map<String, dynamic>? _messageToJson(Message? message) {
-  if (message == null) return null;
-  return message.toJson();
-}
-
-List<User> _participantsFromJson(List<dynamic> json) {
-  return json.map((e) => User.fromJson(e as Map<String, dynamic>)).toList();
-}
-
-List<Map<String, dynamic>> _participantsToJson(List<User> participants) {
-  return participants.map((e) => e.toJson()).toList();
-}
-
-extension ChatRoomModelExtension on ChatRoomModel {
+  // 转换为领域实体
   ChatRoom toChatRoom() => ChatRoom(
         id: id,
         name: name,
-        participants: participants,
+        members: members,
+        description: description,
+        createdAt: createdAt,
+        isPrivate: isPrivate ?? false,
         lastMessage: lastMessage,
         unreadCount: unreadCount,
         isGroup: isGroup,
+        creatorId: creatorId,
       );
+
+  // 创建副本并更新部分属性
+  ChatRoomModel copyWith({
+    String? id,
+    String? name,
+    List<User>? members,
+    String? description,
+    DateTime? createdAt,
+    bool? isPrivate,
+    Message? lastMessage,
+    int? unreadCount,
+    bool? isGroup,
+    String? creatorId,
+  }) {
+    return ChatRoomModel(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      members: members ?? this.members,
+      description: description ?? this.description,
+      createdAt: createdAt ?? this.createdAt,
+      isPrivate: isPrivate ?? this.isPrivate,
+      lastMessage: lastMessage ?? this.lastMessage,
+      unreadCount: unreadCount ?? this.unreadCount,
+      isGroup: isGroup ?? this.isGroup,
+      creatorId: creatorId ?? this.creatorId,
+    );
+  }
+}
+
+// JSON转换帮助方法
+List<User> _membersFromJson(List<dynamic> json) {
+  return json.map((e) => User.fromJson(e as Map<String, dynamic>)).toList();
+}
+
+List<Map<String, dynamic>> _membersToJson(List<User> members) {
+  return members.map((e) => e.toJson()).toList();
 }

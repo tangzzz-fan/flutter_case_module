@@ -17,12 +17,11 @@ class ChatRoomItem extends StatelessWidget {
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       leading: CircleAvatar(
         radius: 25,
-        backgroundImage: chatRoom.participants.isNotEmpty &&
-                chatRoom.participants[0].avatar != null
-            ? NetworkImage(chatRoom.participants[0].avatar!)
-            : null,
-        child: chatRoom.participants.isEmpty ||
-                chatRoom.participants[0].avatar == null
+        backgroundImage:
+            chatRoom.members.isNotEmpty && chatRoom.members[0].avatar != null
+                ? NetworkImage(chatRoom.members[0].avatar!)
+                : null,
+        child: chatRoom.members.isEmpty || chatRoom.members[0].avatar == null
             ? Text(chatRoom.name.substring(0, 1).toUpperCase())
             : null,
       ),
@@ -55,13 +54,13 @@ class ChatRoomItem extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: chatRoom.unreadCount > 0
+                color: chatRoom.unreadCount != null && chatRoom.unreadCount! > 0
                     ? Colors.black87
                     : Colors.grey.shade600,
               ),
             ),
           ),
-          if (chatRoom.unreadCount > 0)
+          if (chatRoom.unreadCount != null && chatRoom.unreadCount! > 0)
             Container(
               padding: const EdgeInsets.all(6),
               decoration: const BoxDecoration(

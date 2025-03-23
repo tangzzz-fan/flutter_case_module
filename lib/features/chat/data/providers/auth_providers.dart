@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
+import 'dart:math';
 
 import '../../domain/entities/chat_state.dart';
 import '../../domain/entities/user.dart';
@@ -26,12 +27,16 @@ class MockAuthRepository implements AuthRepository {
   @override
   Future<User?> getCurrentUser() async {
     // 模拟延迟，模拟网络请求
-    await Future.delayed(Duration(milliseconds: 300));
-    // 返回一个测试用户
-    return const User(
-        id: 'mock_user_id',
-        name: 'Mock User',
-        avatar: 'https://via.placeholder.com/150');
+    await Future.delayed(const Duration(milliseconds: 300));
+    // 返回一个测试用户，包含所有新字段
+    return User(
+      id: 'mock_user_id',
+      name: 'Mock User',
+      avatar: 'https://via.placeholder.com/150',
+      isOnline: true,
+      lastSeen: DateTime.now(),
+      createdAt: DateTime.now().subtract(const Duration(days: 30)),
+    );
   }
 }
 
@@ -40,14 +45,23 @@ final authInfoProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   // 通常从安全存储或登录状态获取用户凭证
   final prefs = await SharedPreferences.getInstance();
 
-  // 获取存储的用户名和令牌
-  final username = prefs.getString('username') ?? 'guest_user';
+  // 如果没有现有用户名，创建一个临时用户名
+  String username = prefs.getString('username') ?? '';
+  if (username.isEmpty) {
+    username = 'Guest_${Random().nextInt(10000)}';
+    await prefs.setString('username', username);
+    print('👤 创建临时用户名: $username');
+  }
+
   final token = prefs.getString('auth_token') ?? '';
 
-  return {
+  final authInfo = {
     'username': username,
     'token': token,
   };
+
+  print('🔑 获取认证信息: $authInfo');
+  return authInfo;
 });
 
 // 设置认证信息
@@ -55,11 +69,14 @@ Future<void> setAuthInfo(String username, String token) async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setString('username', username);
   await prefs.setString('auth_token', token);
+  print(
+      '✅ 已更新认证信息: username=$username, token=${token.isNotEmpty ? '******' : 'empty'}');
 }
 
-// 临时用户名 provider - 这是唯一的定义
-final tempUsernameProvider = StateProvider<String>(
-    (ref) => 'Guest_${DateTime.now().millisecondsSinceEpoch}');
+// 临时用户名 provider
+final tempUsernameProvider = StateProvider<String>((ref) {
+  return 'Guest_${Random().nextInt(10000)}';
+});
 
 // 更新 authRepositoryProvider 使用 MockAuthRepository
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
@@ -73,8 +90,16 @@ final authConnectionStateProvider = StreamProvider<bool>((ref) {
   return repository.connectionStateStream();
 });
 
-// 添加 currentUserProvider 定义
+// 当前用户 Provider
 final currentUserProvider = FutureProvider<User?>((ref) async {
-  final authRepository = ref.watch(authRepositoryProvider);
-  return authRepository.getCurrentUser();
+  final authInfo = await ref.watch(authInfoProvider.future);
+
+  // 创建一个简单的用户对象，基于认证信息
+  return User(
+    id: 'local_user',
+    name: authInfo['username'],
+    isOnline: true,
+    avatar: null,
+    lastSeen: DateTime.now(),
+  );
 });
