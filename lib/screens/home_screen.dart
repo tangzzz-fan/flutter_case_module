@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_module/features/chat/presentation/pages/chat_list_page.dart';
 import '../router/app_router.dart';
 import 'package:flutter/cupertino.dart';
 import 'profile_screen.dart';
 import 'settings_screen.dart';
 import 'bluetooth_screen.dart';
 import 'index_screen.dart';
-import 'chat_list_screen.dart';
 
 /// 主页面容器，包含底部标签栏和各个标签页
 class HomeScreen extends StatefulWidget {
@@ -23,8 +23,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // 定义标签页
   final List<Widget> _tabs = [
+    const ChatListPage(),
     const IndexScreen(),
-    const ChatListScreen(),
     const BluetoothScreen(),
     const ProfileScreen(),
     const SettingsScreen(),
@@ -99,12 +99,12 @@ class _HomeScreenState extends State<HomeScreen> {
         },
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(CupertinoIcons.home),
-            label: '首页',
+            icon: Icon(CupertinoIcons.chat_bubble),
+            label: '聊天',
           ),
           BottomNavigationBarItem(
-            icon: Icon(CupertinoIcons.chat_bubble),
-            label: '消息',
+            icon: Icon(CupertinoIcons.home),
+            label: '首页',
           ),
           BottomNavigationBarItem(
             icon: Icon(CupertinoIcons.bluetooth),

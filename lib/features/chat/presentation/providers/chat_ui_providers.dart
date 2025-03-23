@@ -20,7 +20,8 @@ final getChatRoomsProvider = Provider<GetChatRooms>((ref) {
 });
 
 final getMessagesProvider = Provider<GetMessages>((ref) {
-  return GetMessages(ref.watch(chatRepositoryProvider));
+  final repository = ref.watch(chatRepositoryProvider);
+  return GetMessages(repository);
 });
 
 final sendMessageProvider = Provider<SendMessage>((ref) {
@@ -33,8 +34,8 @@ final chatConnectionStateProvider = Provider<AsyncValue<bool>>((ref) {
   return ref.watch(socketConnectionStatusProvider);
 });
 
-// 添加一个用于触发连接的状态提供者
-final shouldConnectProvider = StateProvider<bool>((ref) => false);
+// 是否应该连接的提供者
+final shouldConnectProvider = StateProvider<bool>((ref) => true);
 
 // 聊天室列表提供者
 final chatRoomsProvider = FutureProvider<List<ChatRoom>>((ref) async {

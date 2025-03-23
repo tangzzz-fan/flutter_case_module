@@ -5,10 +5,9 @@ import '../../data/providers/chat_data_providers.dart';
 import '../../utils/network_connectivity.dart';
 import '../providers/chat_ui_providers.dart';
 import '../widgets/chat_input.dart';
-import '../widgets/message_item.dart';
 import '../../domain/entities/message.dart';
-import '../widgets/error_display.dart';
 import '../../domain/entities/chat_state.dart';
+import '../../domain/entities/user.dart';
 
 class ChatPage extends ConsumerStatefulWidget {
   final String chatRoomId;
@@ -29,6 +28,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
   final ScrollController _scrollController = ScrollController();
   bool _isFirstBuild = true;
   final TextEditingController _messageController = TextEditingController();
+  bool _isLoading = true;
+  String? _error;
+  List<Message> _messages = [];
 
   @override
   void initState() {
@@ -43,6 +45,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
       // 设置网络状态监听
       _checkAndHandleNetworkChange(null, ref.read(networkStatusProvider));
     });
+
+    _loadMessages();
   }
 
   // 网络状态变化处理逻辑
@@ -90,6 +94,62 @@ class _ChatPageState extends ConsumerState<ChatPage>
     }
   }
 
+  Future<void> _loadMessages() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      // 加入聊天室
+      final chatNotifier = ref.read(chatNotifierProvider.notifier);
+      final joinSuccess = await chatNotifier.joinRoom(widget.chatRoomId);
+
+      if (!joinSuccess) {
+        setState(() {
+          _error = '无法加入聊天室: ${chatNotifier.errorMessage}';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      // 获取消息历史
+      final getMessages = ref.read(getMessagesProvider);
+      final result = await getMessages.execute(widget.chatRoomId);
+
+      result.fold(
+        (failure) {
+          setState(() {
+            _error = '获取消息失败: ${failure.message}';
+            _isLoading = false;
+          });
+        },
+        (messages) {
+          setState(() {
+            _messages = messages;
+            _isLoading = false;
+          });
+
+          // 滚动到底部
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_scrollController.hasClients && _messages.isNotEmpty) {
+              _scrollController.animateTo(
+                _scrollController.position.maxScrollExtent,
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeOut,
+              );
+            }
+          });
+        },
+      );
+    } catch (e) {
+      setState(() {
+        _error = '加载消息时出错: $e';
+        _isLoading = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isFirstBuild) {
@@ -123,6 +183,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final chatState = ref.watch(chatNotifierProvider);
     final isConnected =
         chatState.connectionStatus == ConnectionStatus.connected;
+
+    // 获取当前用户（用于区分消息是自己发送的还是别人发送的）
+    final currentUserAsync = ref.watch(currentUserProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -224,46 +287,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
 
           // 消息列表
           Expanded(
-            child: messagesAsync.when(
-              data: (messages) {
-                // 数据加载完成后滚动到底部
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  _scrollToBottom();
-                });
-
-                if (messages.isEmpty) {
-                  return const Center(
-                    child: Text('还没有消息，发送一条新消息开始聊天吧！'),
-                  );
-                }
-
-                return ListView.builder(
-                  controller: _scrollController,
-                  padding: const EdgeInsets.all(16.0),
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final message = messages[index];
-                    final isMe = message.senderId == 'me'; // 假设'me'是当前用户ID
-
-                    return MessageItem(
-                      message: message,
-                      isCurrentUser: isMe,
-                    );
-                  },
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stack) => ErrorDisplay(
-                message: error.toString(),
-                isConnectionError: error.toString().contains('Connection'),
-                onRetry: () {
-                  // 先尝试重新连接
-                  ref.read(chatNotifierProvider.notifier).connect();
-                  // 然后刷新消息
-                  ref.invalidate(chatMessagesProvider(widget.chatRoomId));
-                },
-              ),
-            ),
+            child: _buildMessageList(currentUserAsync),
           ),
 
           // 消息输入框
@@ -271,5 +295,102 @@ class _ChatPageState extends ConsumerState<ChatPage>
         ],
       ),
     );
+  }
+
+  Widget _buildMessageList(AsyncValue<User?> currentUserAsync) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, size: 48, color: Colors.red),
+            const SizedBox(height: 16),
+            Text(_error!, textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _loadMessages,
+              child: const Text('重试'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_messages.isEmpty) {
+      return const Center(
+        child: Text('暂无消息，开始聊天吧！'),
+      );
+    }
+
+    return currentUserAsync.when(
+      data: (currentUser) {
+        return ListView.builder(
+          controller: _scrollController,
+          padding: const EdgeInsets.all(8.0),
+          itemCount: _messages.length,
+          itemBuilder: (context, index) {
+            final message = _messages[index];
+            final isMe =
+                currentUser != null && message.senderId == currentUser.id;
+
+            return _buildMessageItem(message, isMe);
+          },
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => Center(
+        child: Text('获取用户信息失败: $error'),
+      ),
+    );
+  }
+
+  Widget _buildMessageItem(Message message, bool isMe) {
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+        padding: const EdgeInsets.all(12.0),
+        decoration: BoxDecoration(
+          color: isMe ? Colors.blue.shade100 : Colors.grey.shade200,
+          borderRadius: BorderRadius.circular(12.0),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              message.content,
+              style: const TextStyle(fontSize: 16.0),
+            ),
+            const SizedBox(height: 4.0),
+            Text(
+              _formatMessageTime(message.timestamp),
+              style: TextStyle(
+                fontSize: 12.0,
+                color: Colors.grey.shade600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatMessageTime(DateTime time) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final messageDate = DateTime(time.year, time.month, time.day);
+
+    if (messageDate == today) {
+      return '今天 ${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+    } else if (messageDate == yesterday) {
+      return '昨天 ${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+    } else {
+      return '${time.month}月${time.day}日 ${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+    }
   }
 }

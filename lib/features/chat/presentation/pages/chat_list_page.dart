@@ -2,24 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../features/chat/domain/entities/chat_room.dart';
-import 'chat_detail_screen.dart';
-import '../features/chat/data/providers/chat_data_providers.dart';
-import '../features/chat/data/providers/auth_providers.dart';
-import '../features/chat/presentation/widgets/connection_status_indicator.dart';
+import '../../data/providers/chat_data_providers.dart';
+import '../../data/providers/auth_providers.dart';
+import '../widgets/connection_status_indicator.dart';
 import 'dart:async';
 
 /// 聊天会话列表页面
-class ChatListScreen extends ConsumerStatefulWidget {
-  const ChatListScreen({Key? key}) : super(key: key);
+class ChatListPage extends ConsumerStatefulWidget {
+  const ChatListPage({super.key});
 
   static const platform = MethodChannel('com.example.swiftflutter/channel');
 
   @override
-  ConsumerState<ChatListScreen> createState() => _ChatListScreenState();
+  ConsumerState<ChatListPage> createState() => _ChatListPageState();
 }
 
-class _ChatListScreenState extends ConsumerState<ChatListScreen> {
+class _ChatListPageState extends ConsumerState<ChatListPage> {
   bool _isTesting = false;
   Map<String, dynamic>? _testResult;
 
@@ -110,23 +108,24 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('连接详情'),
+        title: const Text('连接详情'),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('连接状态: ${result['success'] ? '成功' : '失败'}',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: const TextStyle(fontWeight: FontWeight.bold)),
               if (result['socketId'] != null)
                 Text('Socket ID: ${result['socketId']}'),
               if (result['error'] != null)
                 Text('错误: ${result['error']}',
-                    style: TextStyle(color: Colors.red)),
+                    style: const TextStyle(color: Colors.red)),
               Text('耗时: ${result['timeTaken']}ms'),
-              Divider(),
-              Text('诊断信息:', style: TextStyle(fontWeight: FontWeight.bold)),
-              SizedBox(height: 8),
+              const Divider(),
+              const Text('诊断信息:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
               _buildDiagnosticInfoList(info),
             ],
           ),
@@ -134,7 +133,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text('关闭'),
+            child: const Text('关闭'),
           ),
         ],
       ),
@@ -210,18 +209,18 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
           // 测试连接按钮
           IconButton(
             icon: _isTesting
-                ? SizedBox(
+                ? const SizedBox(
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
                         strokeWidth: 2, color: Colors.white))
-                : Icon(Icons.network_check),
+                : const Icon(Icons.network_check),
             tooltip: '测试连接',
             onPressed: _isTesting ? null : _testConnection,
           ),
           // 用户信息按钮
           IconButton(
-            icon: Icon(Icons.account_circle),
+            icon: const Icon(Icons.account_circle),
             tooltip: '用户信息',
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -239,8 +238,8 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
           // 显示测试结果（如果有）
           if (_testResult != null)
             Container(
-              margin: EdgeInsets.all(8),
-              padding: EdgeInsets.all(12),
+              margin: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: _testResult!['success']
                     ? Colors.green.shade50
@@ -254,15 +253,15 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('连接测试结果:',
+                  const Text('连接测试结果:',
                       style: TextStyle(fontWeight: FontWeight.bold)),
-                  SizedBox(height: 4),
+                  const SizedBox(height: 4),
                   Text('状态: ${_testResult!['success'] ? '成功' : '失败'}'),
                   if (_testResult!['socketId'] != null)
                     Text('Socket ID: ${_testResult!['socketId']}'),
                   if (_testResult!['error'] != null)
                     Text('错误: ${_testResult!['error']}',
-                        style: TextStyle(color: Colors.red)),
+                        style: const TextStyle(color: Colors.red)),
                   Text('响应时间: ${_testResult!['timeTaken']}ms'),
 
                   // 查看详情按钮
@@ -270,7 +269,7 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                     alignment: Alignment.centerRight,
                     child: TextButton(
                       onPressed: () => _showConnectionDetails(_testResult!),
-                      child: Text('查看详情'),
+                      child: const Text('查看详情'),
                     ),
                   ),
                 ],
@@ -287,14 +286,14 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Text('已连接到聊天服务器', style: TextStyle(fontSize: 18)),
-                        SizedBox(height: 20),
+                        const Text('已连接到聊天服务器', style: TextStyle(fontSize: 18)),
+                        const SizedBox(height: 20),
                         ElevatedButton(
                           onPressed: () {
                             // 导航到聊天室页面
                             Navigator.pushNamed(context, '/chat_rooms');
                           },
-                          child: Text('进入聊天室'),
+                          child: const Text('进入聊天室'),
                         ),
                       ],
                     ),
@@ -305,17 +304,18 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.cloud_off, size: 64, color: Colors.grey),
-                        SizedBox(height: 16),
-                        Text('未连接到聊天服务器',
+                        const Icon(Icons.cloud_off,
+                            size: 64, color: Colors.grey),
+                        const SizedBox(height: 16),
+                        const Text('未连接到聊天服务器',
                             style: TextStyle(
                                 fontSize: 18, fontWeight: FontWeight.bold)),
-                        SizedBox(height: 8),
-                        Text('请检查网络连接后重试'),
-                        SizedBox(height: 24),
+                        const SizedBox(height: 8),
+                        const Text('请检查网络连接后重试'),
+                        const SizedBox(height: 24),
                         ElevatedButton(
                           onPressed: _initializeConnection,
-                          child: Text('重新连接'),
+                          child: const Text('重新连接'),
                         ),
                       ],
                     ),
@@ -327,17 +327,18 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.error_outline, size: 64, color: Colors.red),
-                    SizedBox(height: 16),
-                    Text('连接错误',
+                    const Icon(Icons.error_outline,
+                        size: 64, color: Colors.red),
+                    const SizedBox(height: 16),
+                    const Text('连接错误',
                         style: TextStyle(
                             fontSize: 18, fontWeight: FontWeight.bold)),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Text('$error'),
-                    SizedBox(height: 24),
+                    const SizedBox(height: 24),
                     ElevatedButton(
                       onPressed: _initializeConnection,
-                      child: Text('重试'),
+                      child: const Text('重试'),
                     ),
                   ],
                 ),
@@ -349,26 +350,16 @@ class _ChatListScreenState extends ConsumerState<ChatListScreen> {
     );
   }
 
-  void _navigateToChatDetail(
-      BuildContext context, WidgetRef ref, ChatRoom chatRoom) {
-    // 导航到聊天详情页面
-    Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => ChatDetailScreen(
-            chatId: chatRoom.id,
-            chatName: chatRoom.name,
-          ),
-        ));
-  }
-
   void _returnToNative() async {
-    // try {
-    //   await platform.invokeMethod('willCloseFlutterView');
-    //   SystemNavigator.pop();
-    // } catch (e) {
-    //   print('关闭页面时出错: $e');
-    //   SystemNavigator.pop();
-    // }
+    try {
+      // 调用原生方法，通知原生端即将关闭Flutter视图
+      await ChatListPage.platform.invokeMethod('willCloseFlutterView');
+      // 关闭Flutter视图
+      SystemNavigator.pop();
+    } catch (e) {
+      print('关闭页面时出错: $e');
+      // 即使调用原生方法失败，也尝试关闭Flutter视图
+      SystemNavigator.pop();
+    }
   }
 }

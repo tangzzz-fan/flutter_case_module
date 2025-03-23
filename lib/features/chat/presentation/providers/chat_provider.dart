@@ -230,8 +230,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
     try {
       // 检查连接状态
       if (!_socketManager.isConnected) {
-        _errorMessage = '未连接到服务器，无法获取聊天室列表';
-        return [];
+        final connected = await connect();
+        if (!connected) {
+          _errorMessage = '未连接到服务器，无法获取聊天室列表';
+          return [];
+        }
       }
 
       // 调用仓库获取聊天室列表
@@ -241,11 +244,31 @@ class ChatNotifier extends StateNotifier<ChatState> {
           _errorMessage = '获取聊天室失败: ${failure.message}';
           return [];
         },
-        (rooms) => rooms,
+        (rooms) {
+          // 更新状态
+          state = state.copyWith(chatRooms: rooms);
+          return rooms;
+        },
       );
     } catch (e) {
       _errorMessage = '获取聊天室出错: $e';
       return [];
+    }
+  }
+
+  // 处理加入聊天室
+  Future<bool> joinRoom(String roomId) async {
+    try {
+      if (!_socketManager.isConnected) {
+        _errorMessage = '未连接到服务器，无法加入聊天室';
+        return false;
+      }
+
+      _socketManager.socket.emit('join_room', {'roomId': roomId});
+      return true;
+    } catch (e) {
+      _errorMessage = '加入聊天室失败: $e';
+      return false;
     }
   }
 
